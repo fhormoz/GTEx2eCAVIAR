@@ -4,6 +4,7 @@ import time
 import random
 import sys, traceback
 import subprocess
+from myconfig import *
 from subprocess import Popen, PIPE
 
 
@@ -25,8 +26,8 @@ TEMPLATE_SERIAL = """
 #$ -e {errfile}
 #$ -o {logfile}
 #$ -pe make {slots}
-#$ -l h_data=3G
-#$ -l h_rt=1:00:00
+#$ -l h_data=2G
+#$ -l h_rt=12:00:00
 #####################################
 echo "------------------------------------------------------------------------"
 echo "Job started on" `date`
@@ -37,10 +38,6 @@ echo "------------------------------------------------------------------------"
 echo "Job ended on" `date`
 echo "------------------------------------------------------------------------"
 """
-gwasName = "FP";
-sigFile = "../GTEx_GWAS/sign_snps_FP_MAGIC_FastingProinsulin.txt";
-gtexPath = "/u/project/eeskin/zarlab/abzhu/data/45282/gtex/exchange/GTEx_phs000424/exchange/analysis_releases/GTEx_Analysis_2015-01-12/eqtl_data/";
-gwasFile  = "~/project/data/GTEx_GWAS/Final/MAGIC/FP_MAGIC_FastingProinsulin.hg19.bed.final"
 tissueNames = glob.glob(gtexPath + "GTEx_Analysis_2015-01-12_MatrixEQTL_allCisSNPGenePairs/*.eqtl");
 tissueNames = [tissueName.replace(gtexPath+"GTEx_Analysis_2015-01-12_MatrixEQTL_allCisSNPGenePairs/", '').replace('_Analysis.cis.eqtl','') for tissueName in tissueNames];
 print tissueNames;
@@ -71,5 +68,4 @@ for tissueName in tissueNames:
 		  " -t " + tissueName;
 	print script;
 	open(scriptfile+'.qsub', 'wb').write(TEMPLATE_SERIAL.format(script=script, name="GTEx2eCAVIAR", logfile=logfile, errfile=errfile, slots=1))
-	subprocess.call('qsub -cwd -l highp,h_rt=1:00:00,h_data=3G ' + scriptfile + '.qsub', shell=True)
-
+	subprocess.call('qsub -cwd -l h_rt=12:00:00,h_data=2G ' + scriptfile + '.qsub', shell=True)

@@ -6,6 +6,7 @@
 #include <fstream>      // std::ifstream
 #include <string>
 
+#include <stdlib.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
@@ -27,6 +28,29 @@ int getDir (string dir, vector<string> &files) {
     return 0;
 }
 
+double computeAvg(vector <double> data) {
+	double total = 0;
+	for(int i = 0; i < data.size(); i++)
+		total = total + data[i];
+	return(total/data.size());
+}
+
+double computeVar(vector <double> data, double mean) {
+	double total = 0;
+	for(int i = 0; i < data.size(); i++)
+		total = total + ((data[i]-mean) * (data[i]-mean));
+	return( total/data.size() );
+}
+
+double computeCov(vector <double> data1, vector <double> data2) {
+	double mean1 = computeAvg(data1);
+	double mean2 = computeAvg(data2);
+	double total = 0;
+	for(int i = 0; i < data1.size(); i++)
+                total = total + ((data1[i]-mean1) * (data2[i]-mean2));
+	return(total / data1.size());
+}
+
 double computeCor(string data1, string data2) {
 	double d;
 	vector <double> dataV1;
@@ -39,18 +63,15 @@ double computeCor(string data1, string data2) {
 		ssin2 >> d;
 		dataV2.push_back(d);
 	}
-	double sumProduct = 0;
-	double sumV1Pow2  = 0;
-	double sumV2Pow2  = 0;	
-	for(int i = 0; i < dataV1.size(); i++) {
-		sumProduct += dataV1[i] * dataV2[i];
-		sumV1Pow2  += (dataV1[i]*dataV1[i]);
-		sumV2Pow2  += (dataV2[i]*dataV2[i]);
-	}	
-	return( sumProduct/(sqrt(sumV1Pow2)*sqrt(sumV2Pow2)) );	
+	double mean1 = computeAvg(dataV1); 
+	double var1  = computeVar(dataV1, mean1);	
+	double mean2 = computeAvg(dataV2);
+	double var2  = computeVar(dataV2, mean2);
+	double cov   = computeCov(dataV1, dataV2);
+	return (cov/(sqrt(var1)*sqrt(var2)));
 }
 
-void generateLD(map <string, string> & snpDosageData, vector <string> snpIDs, string outputFileName) {	
+void generateLD(map <string, string> & snpDosageData, vector <string> snpIDs, string outputFileName, bool signOrNoSign) {	
 	vector < vector<double> > LD;
 	ofstream outputStream;
 
@@ -60,14 +81,15 @@ void generateLD(map <string, string> & snpDosageData, vector <string> snpIDs, st
 		LD[i].resize(snpIDs.size());
 		for(int j = 0; j < snpIDs.size(); j++) {
 			LD[i][j] = computeCor(snpDosageData[snpIDs[i]], snpDosageData[snpIDs[j]]);
-			outputStream << LD[i][j] << " ";
+			if(signOrNoSign)	outputStream << LD[i][j] << " ";
+			else 			outputStream << abs(LD[i][j]) << " ";
 		}
 		outputStream << endl;
 	}
 	outputStream.close();	
 }
 
-void generteALLLD(string dicName, map <string, string> & snpDosageData) {
+void generteALLLD(string dicName, map <string, string> & snpDosageData, bool signOrNoSign) {
 	vector <string> eqtlFiles;
 	vector <string> tmpSNPs;
         getDir(dicName, eqtlFiles);
@@ -80,8 +102,8 @@ void generteALLLD(string dicName, map <string, string> & snpDosageData) {
                         string snpID = line.substr(0, line.find("\t"));
                         tmpSNPs.push_back(snpID);
                 }
-		string tmpName = eqtlFiles[i].substr(0, eqtlFiles[i].find_last_of(".eqtl"));
-		generateLD(snpDosageData, tmpSNPs, dicName+ tmpName + ".LD" );
+		string tmpName = eqtlFiles[i].substr(0, eqtlFiles[i].find(".eqtl"));
+		generateLD(snpDosageData, tmpSNPs, dicName+ tmpName + ".LD" , signOrNoSign);
                 snpStream.close();
 		tmpSNPs.erase(tmpSNPs.begin(), tmpSNPs.end());
         }
@@ -132,6 +154,8 @@ void obtainDosageData(string dosageFileName, map <string, string> & snpDosageDat
 
 int main( int argc, char *argv[] ) {
 	int oc = 0;
+	int signValue = 0;
+	bool signOrNoSign = true;
 	string tissueName;
 	string gwasName;
 	string currentPath;
@@ -140,7 +164,7 @@ int main( int argc, char *argv[] ) {
 	vector <string> snpLists;
 	map <string, string> snpDosageData;
 
-	 while ((oc = getopt(argc, argv, "vhl:f:o:t:g:")) != -1) {
+	 while ((oc = getopt(argc, argv, "vhl:f:o:t:g:s:")) != -1) {
                 switch (oc) {
                         case 'v':
                                 cout << "version 0.0:" << endl;
@@ -151,7 +175,8 @@ int main( int argc, char *argv[] ) {
                                 cout << " -g GWASNAME"    << " specify the name of GWAS"   << endl;
                                 cout << " -o TMPFILE"     << " specify the tmp folder"     << endl;
                                 cout << " -f Genotype File" << " specify the GTEx Genotype folder" << endl;
-                                return(0);
+	                        cout << " -s SIGN" << "specify the sign of LD, 0 (No sign, eveything is positive), 1 (Sing is important)" << endl;     
+   				return(0);
                         case 't':
                                 tissueName  = string(optarg);
                                 break;
@@ -164,6 +189,10 @@ int main( int argc, char *argv[] ) {
                         case 'f':
                                 genotypeFile = string(optarg) + "/" + tissueName + "_Analysis.snps.txt";
                                 break;
+			case 's':
+				signValue = atoi(optarg);
+				signOrNoSign = ((signValue==1)? true : false);
+				break;
                         case ':':
                         case '?':
                         default:
@@ -174,5 +203,5 @@ int main( int argc, char *argv[] ) {
 
 	obtainALLSNPsFromDirectory(currentPath + "/in/" + gwasName + "/" + tissueName + "/", hashMapSNP);
 	obtainDosageData(genotypeFile, snpDosageData, hashMapSNP);
-	generteALLLD(currentPath + "/in/" + gwasName + "/" + tissueName + "/", snpDosageData);	
+	generteALLLD(currentPath + "/in/" + gwasName + "/" + tissueName + "/", snpDosageData, signOrNoSign);	
 }

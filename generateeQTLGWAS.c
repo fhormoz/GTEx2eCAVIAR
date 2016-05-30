@@ -28,7 +28,7 @@ int getDir (string dir, vector<string> &files) {
     return 0;
 }
 
-void generateeQTLGWAS(map <string, vector <string> > & gtexCisSig, vector <string> snpIDs, vector <double> zScoreGWAS, string outputFileName) {	
+void generateeQTLGWAS(map <string, vector <string> > & gtexCisSig, vector <string> snpIDs, vector <double> zScoreGWAS, string outputFileName, bool signOrNoSign) {	
 	ofstream outputStream;
 	
 	for(int i = 0; i < snpIDs.size(); i++) {
@@ -36,21 +36,28 @@ void generateeQTLGWAS(map <string, vector <string> > & gtexCisSig, vector <strin
 		vector <string> cisSig = gtexCisSig[snpId];
 		for(int j = 0; j < cisSig.size(); j++) {
 			string tmp = cisSig[j];
+			string tmp2;
+			string tmp3;
 			string geneId = tmp.substr(0, tmp.find("\t"));
 			outputStream.open( (outputFileName+ geneId + ".eqtl").c_str() , std::ofstream::out | std::ofstream::app);
 			//TODO not sure which one is the z-score
 			outputStream << snpId << "\t";
-			outputStream << tmp.substr(tmp.find("\t")+1) << endl;  
+			tmp2 = tmp.substr(tmp.find("\t")+1);
+			tmp3 = tmp2.substr(tmp2.find("\t")+1);
+			double zscoretmp = atof(tmp3.substr(0, tmp3.find("\t")).c_str());
+			if(signOrNoSign)	outputStream << zscoretmp << endl;  
+			else			outputStream << abs(zscoretmp) << endl;	
 			outputStream.close();
 			outputStream.open( (outputFileName + geneId + ".gwas").c_str(), std::ofstream::out | std::ofstream::app);
 			outputStream << snpId << "\t";
-			outputStream << zScoreGWAS[i] << endl;
+			if(signOrNoSign)	outputStream << zScoreGWAS[i] << endl;
+			else 			outputStream << abs(zScoreGWAS[i]) << endl;
 			outputStream.close();
 		}	
 	}	
 }
 
-void generateALLeQTLGWAS(map <string, vector <string> > & gtexCisSig, string dicName, string outputFileName) {
+void generateALLeQTLGWAS(map <string, vector <string> > & gtexCisSig, string dicName, string outputFileName, bool signOrNoSign) {
 	vector <string> files;
         getDir(dicName, files);
 
@@ -69,7 +76,7 @@ void generateALLeQTLGWAS(map <string, vector <string> > & gtexCisSig, string dic
 			zScoreGWAS.push_back(zScore);
 		}
 		string tmpfileName = files[i].substr(0, files[i].find(".peak"));
-		generateeQTLGWAS(gtexCisSig, snpIDs, zScoreGWAS, outputFileName + "/" + tmpfileName);	
+		generateeQTLGWAS(gtexCisSig, snpIDs, zScoreGWAS, outputFileName + "/" + tmpfileName, signOrNoSign);	
 		snpIDs.erase( snpIDs.begin(), snpIDs.end() );
 		zScoreGWAS.erase( zScoreGWAS.begin(), zScoreGWAS.end() );
 		test.close();
@@ -115,6 +122,8 @@ void obtainGTExCisSignificant(string dosageFileName, map <string, vector <string
 
 int main(int argc, char *argv[]) {
 	int oc = 0;
+	int signValue = 0;
+	bool signOrNoSign = true;
 	string tissueName;
 	string gwasName;
 	string currentPath;
@@ -127,7 +136,7 @@ int main(int argc, char *argv[]) {
 	
 	string cisGTEXFileName;
 	
-	while ((oc = getopt(argc, argv, "vhl:f:o:t:g:")) != -1) {
+	while ((oc = getopt(argc, argv, "vhl:f:o:t:g:s:")) != -1) {
                 switch (oc) {
                         case 'v':
                                 cout << "version 0.0:" << endl;
@@ -138,6 +147,7 @@ int main(int argc, char *argv[]) {
 				cout << " -g GWASNAME"    << " specify the name of GWAS"   << endl;
 				cout << " -o TMPFILE"     << " specify the tmp folder"     << endl;			 
 				cout << " -f GTEXCisFILE" << " specify the GTEx Cis significant folder" << endl;
+				cout << " -s SIGN " << "specify if we need sign or not for Z-score and LD, 0 (everything is positive), 1 (sign is important)" << endl;
 				return(0);
 			case 't':
 				tissueName  = string(optarg);
@@ -150,6 +160,10 @@ int main(int argc, char *argv[]) {
 				break;
 			case 'f':
 				cisGTEXFileName = string(optarg) + "/" + tissueName + "_Analysis.cis.eqtl"; 	
+				break;
+			case 's':
+				signValue = atoi(optarg);
+				signOrNoSign = ((signValue==0) ? false : true);
 				break;
 			case ':':
                         case '?':
@@ -164,6 +178,6 @@ int main(int argc, char *argv[]) {
 			
 	obtainALLSNPsFromDirectory(currentPath + "/peak/" + gwasName + "/" + tissueName + "/" , hashMapSNP2ZGWAS);
 	obtainGTExCisSignificant(cisGTEXFileName, gtexCisSig, hashMapSNP2ZGWAS, geneGTExCisSig);
-	generateALLeQTLGWAS(gtexCisSig, currentPath + "/peak/" + gwasName + "/" + tissueName + "/" , currentPath + "/in/" + gwasName + "/" + tissueName + "/");	
+	generateALLeQTLGWAS(gtexCisSig, currentPath + "/peak/" + gwasName + "/" + tissueName + "/" , currentPath + "/in/" + gwasName + "/" + tissueName + "/", signOrNoSign);	
 	
 }	
